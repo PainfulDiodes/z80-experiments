@@ -78,7 +78,8 @@ void readInterrupt() {
       }
     }
     if(digitalRead(IORQ)==LOW) { // read of IO - do we need to check this? is it not implied?
-      d = 0xaa; // some value
+      int i = Serial.read();
+      d = i < 0 ? 0 : i;
     }
     for(int i=0; i<8; i++) digitalWrite(D[i],bitRead(d,i)); // put the data from memory on the bus, bit by bit
   }
