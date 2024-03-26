@@ -1,4 +1,3 @@
-// Mock Memory
 //  1    0000              SER_CTR EQU 0x00    ; serial control register address
 //  2    0000              SER_DATA EQU 0x01   ; serial data register address
 //  3    0000
