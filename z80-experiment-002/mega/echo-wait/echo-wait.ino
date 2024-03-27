@@ -6,28 +6,26 @@ const unsigned int SER_CTR = 0;
 const unsigned int SER_DATA = 1;
 
 // internal Arduino state 
-String cache = "";
 volatile bool isIORQ;
 
-const bool LOGGING = false;
+const bool LOGGING = true;
 
 void setup() {
   Serial.begin(9600);
   // digital pins default to input mode, and so we don't need to set status for every pin https://docs.arduino.cc/learn/microcontrollers/digital-pins/
+
+  pinMode(WAIT, OUTPUT);
 
   // a CHANGE interrupt on the clock means we are triggering on half clock cycles (rising and falling edges)
   attachInterrupt(digitalPinToInterrupt(RD), readInterrupt, CHANGE); 
   attachInterrupt(digitalPinToInterrupt(WR), writeInterrupt, CHANGE); 
 }
 
-void loop() { // loop is needed only to flush the message cache - the work is done in interrupts
-  if(cache.length()>0) {
-    Serial.print(cache);
-    cache="";
-  }
-} 
+void loop() {} // loop is not needed - the work is done in interrupts
+
 
 void readInterrupt() {
+  digitalWrite(WAIT,LOW); // ask the Z80 to wait
   if(digitalRead(RD)==LOW) { // we are here because RD has changed - if RD is LOW then it has just become LOW - a falling edge and so the beginning of a read
     for(int i=0; i<8; i++) pinMode(D[i], OUTPUT); // switch the data pins to output mode
     unsigned int a=0;
@@ -55,9 +53,11 @@ void readInterrupt() {
   else { // RD is HIGH and has just become HIGH - rising edge and so the end of the read process
     for(int i=0; i<8; i++) pinMode(D[i], INPUT); // switch the pins back to input mode
   }
+  digitalWrite(WAIT,HIGH); // release the Z80 wait
 }
 
 void writeInterrupt() {
+  digitalWrite(WAIT,LOW); // ask the Z80 to wait
   String s;
   if(digitalRead(WR)==LOW) { // we are here because WR has changed - if WR is LOW then it has just become LOW - a falling edge and so the beginning of a write
     for(int i=0; i<8; i++) pinMode(D[i], INPUT);  // switch the data pins to input mode
@@ -82,6 +82,7 @@ void writeInterrupt() {
     writeOut(s);
     writeLogLn();
   }
+  digitalWrite(WAIT,HIGH); // release the Z80 wait
 }
 
 void writeLogBusStatus() {
@@ -108,15 +109,15 @@ void writeLogBusStatus() {
 
 void writeLog(String s) {
   if(LOGGING) {
-    cache += String(s);
-    cache += String(' ');
+    Serial.print(s);
+    Serial.print(' ');
   }
 }
 
 void writeLogLn() {
-  if(LOGGING) cache += String('\n');
+  if(LOGGING) Serial.print('\n');
 }
 
 void writeOut(String s) {
-  cache += String(s);
+  Serial.print(s);
 }
