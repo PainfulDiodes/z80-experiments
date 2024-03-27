@@ -9,7 +9,7 @@ const unsigned int SER_DATA = 1;
 String cache = "";
 volatile bool isIORQ;
 
-const bool LOGGING = true;
+const bool LOGGING = false;
 
 void setup() {
   Serial.begin(9600);
