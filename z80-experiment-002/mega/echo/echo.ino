@@ -6,26 +6,26 @@ const unsigned int SER_CTR = 0;
 const unsigned int SER_DATA = 1;
 
 // internal Arduino state 
-String cache = "";
 volatile bool isIORQ;
 
-const bool LOGGING = true;
+const bool LOGGING = false;
 
 void setup() {
   Serial.begin(9600);
   // digital pins default to input mode, and so we don't need to set status for every pin https://docs.arduino.cc/learn/microcontrollers/digital-pins/
+
+  pinMode(CLK, OUTPUT);
 
   // a CHANGE interrupt on the clock means we are triggering on half clock cycles (rising and falling edges)
   attachInterrupt(digitalPinToInterrupt(RD), readInterrupt, CHANGE); 
   attachInterrupt(digitalPinToInterrupt(WR), writeInterrupt, CHANGE); 
 }
 
-void loop() { // loop is needed only to flush the message cache - the work is done in interrupts
-  if(cache.length()>0) {
-    Serial.print(cache);
-    cache="";
-  }
-} 
+void loop() {
+  digitalWrite(CLK,0);
+  digitalWrite(CLK,1);
+}
+
 
 void readInterrupt() {
   if(digitalRead(RD)==LOW) { // we are here because RD has changed - if RD is LOW then it has just become LOW - a falling edge and so the beginning of a read
@@ -108,15 +108,15 @@ void writeLogBusStatus() {
 
 void writeLog(String s) {
   if(LOGGING) {
-    cache += String(s);
-    cache += String(' ');
+    Serial.print(s);
+    Serial.print(' ');
   }
 }
 
 void writeLogLn() {
-  if(LOGGING) cache += String('\n');
+  if(LOGGING) Serial.print('\n');
 }
 
 void writeOut(String s) {
-  cache += String(s);
+  Serial.print(s);
 }
