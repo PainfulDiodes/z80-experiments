@@ -1,0 +1,83 @@
+# file opened: marvin.asm
+ 1    0000              ; **********************************************************************
+ 2    0000              ; *  Marvin - a tiny Z80 monitor program
+ 3    0000              ; **********************************************************************
+ 4    0000
+ 5    0000              SIO_CTRL .equ 0         ; serial control register address
+ 6    0000              SIO_DATA .equ 1         ; serial data register address
+ 7    0000              BUFFER .equ 0x8000      ; start of RAM
+ 8    0000              STACK .equ 0xffff       ; this should really be 0x0000 as the CPU will dec SP before PUSH
+ 9    0000
+10    0000              start:
+11    0000 11 00 00         ld de,0             ; point DE to zero - this is the default location for the read command
+12    0003 31 FF FF         ld sp, STACK
+13    0006              new_prompt:
+14    0006 21 00 80         ld hl,BUFFER        ; point HL to the beginning of the input buffer
+15    0009 3E 3E            ld a,">"
+16    000B D3 01            out (SIO_DATA),a
+17    000D              get_char:
+18    000D DB 00            in a,(SIO_CTRL)     ; read the serial control register
+19    000F CB 47            bit 0,a             ; check bit 0 - receive character available
+20    0011 CA 0D 00         jp z,get_char       ; loop back if nothing to read
+21    0014 DB 01            in a,(SIO_DATA)     ; read a character
+22    0016 D3 01            out (SIO_DATA),a    ; echo the character
+23    0018 77               ld(hl),a            ; add to the buffer
+24    0019 23               inc hl              ; move pointer to next buffer location - we're not checking for overrun
+25    001A FE 0A            cp "\n"
+26    001C 20 EF            jr nz, get_char     ; next character if not newline
+27    001E              proc_cmd:               ; drop through here on newline
+28    001E 21 00 80         ld hl,BUFFER        ; point to start of buffer
+29    0021 7E               ld a,(hl)           ; load character from buffer
+30    0022 FE 72            cp "r"              ; r = read
+31    0024 28 0B            jr z,rd_start
+32    0026 3E 3F            ld a, "?"           ; otherwise error
+33    0028 D3 01            out (SIO_DATA),a
+34    002A 3E 0A            ld a, "\n"
+35    002C D3 01            out (SIO_DATA),a
+36    002E C3 06 00         jp new_prompt       ; loop back to the prompt
+37    0031              rd_start:
+38    0031 0E 10            ld c, 0x10          ; initialise byte counter - each row will have this many bytes
+39    0033              rd_start_ln:
+40    0033 7A               ld a,d              ; print DE content: the read address
+41    0034 CD 56 00         call prt_hex
+42    0037 7B               ld a,e
+43    0038 CD 56 00         call prt_hex
+44    003B 3E 3A            ld a,":"
+45    003D D3 01            out(SIO_DATA),a
+46    003F 3E 20            ld a," "
+47    0041 D3 01            out(SIO_DATA),a
+48    0043              rd_ln_loop:
+49    0043 1A               ld a,(de)           ; get a byte
+50    0044 CD 56 00         call prt_hex        ; and print it
+51    0047 3E 20            ld a," "            ; add space between bytes
+52    0049 D3 01            out (SIO_DATA),a
+53    004B 13               inc de              ; next address
+54    004C 0D               dec c               ; reduce byte counter
+55    004D 20 F4            jr nz, rd_ln_loop   ; repeat if the counter is not 0
+56    004F 3E 0A            ld a, "\n"          ; otherwise, new line
+57    0051 D3 01            out (SIO_DATA),a
+58    0053 C3 06 00         jp new_prompt       ; and back to prompt
+59    0056              prt_hex:
+60    0056 47               ld b,a              ; copy into B
+61    0057 CB 3F            srl a               ; shift A right x4 e.g. transform 10110010 to 00001011
+62    0059 CB 3F            srl a
+63    005B CB 3F            srl a
+64    005D CB 3F            srl a
+65    005F CD 69 00         call prt_hex_dgt    ; most significant digit
+66    0062 78               ld a,b              ; get the original copy back
+67    0063 E6 0F            and %00001111       ; clears the top 4 bits
+68    0065 CD 69 00         call prt_hex_dgt    ; least significant digit
+69    0068 C9               ret
+70    0069              prt_hex_dgt:
+71    0069 FE 0A            cp 0x0a             ; is it an alpha or numeric?
+72    006B 38 05            jr c,prt_hex_n      ; numeric
+73    006D              prt_hex_a:              ; or drop through to alpha
+74    006D C6 57            add a,"W"           ; for alpha add the base ascii for 'a' but then sub 10 as hex 'a' is 10d => 'W'
+75    006F D3 01            out (SIO_DATA),a
+76    0071 C9               ret
+77    0072              prt_hex_n:
+78    0072 C6 30            add a,"0"           ; for numeric add the base ascii for '0'
+79    0074 D3 01            out (SIO_DATA),a
+80    0076 C9               ret
+81    0077              end:
+# file closed: marvin.asm

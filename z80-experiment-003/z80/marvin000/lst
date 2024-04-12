@@ -1,0 +1,117 @@
+# file opened: marvin.asm
+ 1    0000              ; **********************************************************************
+ 2    0000              ; *  Marvin - a tiny Z80 monitor program
+ 3    0000              ; **********************************************************************
+ 4    0000
+ 5    0000              SIO_CTRL .equ 0         ; serial control register address
+ 6    0000              SIO_DATA .equ 1         ; serial data register address
+ 7    0000
+ 8    0000              start:
+ 9    0000 11 00 00         ld de,0             ; point DE to zero - this is the default location for the read command
+10    0003 31 B7 00         ld sp, stack
+11    0006              new_prompt:
+12    0006 21 77 00         ld hl,buffer        ; point HL to the beginning of the input buffer
+13    0009 3E 3E            ld a,">"
+14    000B D3 01            out (SIO_DATA),a
+15    000D              get_char:
+16    000D DB 00            in a,(SIO_CTRL)     ; read the serial control register
+17    000F CB 47            bit 0,a             ; check bit 0 - receive character available
+18    0011 CA 0D 00         jp z,get_char       ; loop back if nothing to read
+19    0014 DB 01            in a,(SIO_DATA)     ; read a character
+20    0016 D3 01            out (SIO_DATA),a    ; echo the character
+21    0018 77               ld(hl),a            ; add to the buffer
+22    0019 23               inc hl              ; move pointer to next buffer location - we're not checking for overrun
+23    001A FE 0A            cp "\n"
+24    001C 20 EF            jr nz, get_char     ; next character if not newline
+25    001E              proc_cmd:               ; drop through here on newline
+26    001E 21 77 00         ld hl,buffer        ; point to start of buffer
+27    0021 7E               ld a,(hl)           ; load character from buffer
+28    0022 FE 72            cp "r"              ; r = read
+29    0024 28 0B            jr z,rd_start
+30    0026 3E 3F            ld a, "?"           ; otherwise error
+31    0028 D3 01            out (SIO_DATA),a
+32    002A 3E 0A            ld a, "\n"
+33    002C D3 01            out (SIO_DATA),a
+34    002E C3 06 00         jp new_prompt       ; loop back to the prompt
+35    0031              rd_start:
+36    0031 0E 10            ld c, 0x10          ; initialise byte counter - each row will have this many bytes
+37    0033              rd_start_ln:
+38    0033 7A               ld a,d              ; print DE content: the read address
+39    0034 CD 56 00         call prt_hex
+40    0037 7B               ld a,e
+41    0038 CD 56 00         call prt_hex
+42    003B 3E 3A            ld a,":"
+43    003D D3 01            out(SIO_DATA),a
+44    003F 3E 20            ld a," "
+45    0041 D3 01            out(SIO_DATA),a
+46    0043              rd_ln_loop:
+47    0043 1A               ld a,(de)           ; get a byte
+48    0044 CD 56 00         call prt_hex        ; and print it
+49    0047 3E 20            ld a," "            ; add space between bytes
+50    0049 D3 01            out (SIO_DATA),a
+51    004B 13               inc de              ; next address
+52    004C 0D               dec c               ; reduce byte counter
+53    004D 20 F4            jr nz, rd_ln_loop   ; repeat if the counter is not 0
+54    004F 3E 0A            ld a, "\n"          ; otherwise, new line
+55    0051 D3 01            out (SIO_DATA),a
+56    0053 C3 06 00         jp new_prompt       ; and back to prompt
+57    0056              prt_hex:
+58    0056 47               ld b,a              ; copy into B
+59    0057 CB 3F            srl a               ; shift A right x4 e.g. transform 10110010 to 00001011
+60    0059 CB 3F            srl a
+61    005B CB 3F            srl a
+62    005D CB 3F            srl a
+63    005F CD 69 00         call prt_hex_dgt    ; most significant digit
+64    0062 78               ld a,b              ; get the original copy back
+65    0063 E6 0F            and %00001111       ; clears the top 4 bits
+66    0065 CD 69 00         call prt_hex_dgt    ; least significant digit
+67    0068 C9               ret
+68    0069              prt_hex_dgt:
+69    0069 FE 0A            cp 0x0a             ; is it an alpha or numeric?
+70    006B 38 05            jr c,prt_hex_n      ; numeric
+71    006D              prt_hex_a:              ; or drop through to alpha
+72    006D C6 57            add a,"W"           ; for alpha add the base ascii for 'a' but then sub 10 as hex 'a' is 10d => 'W'
+73    006F D3 01            out (SIO_DATA),a
+74    0071 C9               ret
+75    0072              prt_hex_n:
+76    0072 C6 30            add a,"0"           ; for numeric add the base ascii for '0'
+77    0074 D3 01            out (SIO_DATA),a
+78    0076 C9               ret
+79    0077
+80    0077              buffer:
+81    0077 00 00 00 00      .db 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+81    007B 00 00 00 00
+82    007F 00 00 00 00      .db 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+82    0083 00 00 00 00
+83    0087 00 00 00 00      .db 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+83    008B 00 00 00 00
+84    008F 00 00 00 00      .db 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+84    0093 00 00 00 00
+85    0097 00 00 00 00      .db 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+85    009B 00 00 00 00
+86    009F 00 00 00 00      .db 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+86    00A3 00 00 00 00
+87    00A7 00 00 00 00      .db 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+87    00AB 00 00 00 00
+88    00AF 00 00 00 00      .db 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+88    00B3 00 00 00 00
+89    00B7
+90    00B7              stack:
+91    00B7 00 00 00 00      .db 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+91    00BB 00 00 00 00
+92    00BF 00 00 00 00      .db 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+92    00C3 00 00 00 00
+93    00C7 00 00 00 00      .db 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+93    00CB 00 00 00 00
+94    00CF 00 00 00 00      .db 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+94    00D3 00 00 00 00
+95    00D7 00 00 00 00      .db 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+95    00DB 00 00 00 00
+96    00DF 00 00 00 00      .db 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+96    00E3 00 00 00 00
+97    00E7 00 00 00 00      .db 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+97    00EB 00 00 00 00
+98    00EF 00 00 00 00      .db 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00
+98    00F3 00 00 00 00
+99    00F7
+# file closed: marvin.asm
