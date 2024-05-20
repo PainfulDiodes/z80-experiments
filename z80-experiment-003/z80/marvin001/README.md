@@ -1,6 +1,6 @@
 # marvin - a tiny Z80 monitor program
 The original version was needs to operate entirely within RAM   
-which was first run using an Arduino Mega to provide RAM to te Z80
+which was first run using an Arduino Mega to provide RAM to the Z80
 
 This version was altered to run in ROM, separating stack and buffer into RAM
 The original version had an error in that it assumed the stack worked up from a given memory location
