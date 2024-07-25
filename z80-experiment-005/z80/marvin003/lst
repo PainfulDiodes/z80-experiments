@@ -1,0 +1,127 @@
+# file opened: marvin.asm
+ 1    0000              ; **********************************************************************
+ 2    0000              ; *  Marvin - a tiny Z80 monitor program
+ 3    0000              ; **********************************************************************
+ 4    0000
+ 5    0000              SIO_CTRL .equ 0         ; serial control register address
+ 6    0000              SIO_DATA .equ 1         ; serial data register address
+ 7    0000              BUFFER .equ 0x8000      ; start of RAM
+ 8    0000              STACK .equ 0xffff       ; this should really be 0x0000 as the CPU will dec SP before PUSH
+ 9    0000
+10    0000              start:
+11    0000 11 00 00         ld de,0             ; point DE to zero - this is the default location for the read command
+12    0003 31 FF FF         ld sp, STACK
+13    0006              ready_chk:
+14    0006 DB 00            in a,(SIO_CTRL)     ; read the serial control register
+15    0008 CB 4F            bit 1,a             ; check bit 0 - ready to write
+16    000A C2 06 00         jp nz,ready_chk     ; loop back if not ready
+17    000D              welcome:
+18    000D 21 8E 00         ld hl,start_msg
+19    0010 CD 84 00         call prt_str
+20    0013              new_prompt:
+21    0013 21 00 80         ld hl,BUFFER        ; point HL to the beginning of the input buffer
+22    0016 3E 3E            ld a,">"
+23    0018 D3 01            out (SIO_DATA),a
+24    001A              get_char:
+25    001A DB 00            in a,(SIO_CTRL)     ; read the serial control register
+26    001C CB 47            bit 0,a             ; check bit 0 - receive character available
+27    001E C2 1A 00         jp nz,get_char      ; loop back if nothing to read
+28    0021 DB 01            in a,(SIO_DATA)     ; read a character
+29    0023 D3 01            out (SIO_DATA),a    ; echo the character
+30    0025 77               ld(hl),a            ; add to the buffer
+31    0026 23               inc hl              ; move pointer to next buffer location - we're not checking for overrun
+32    0027 FE 0A            cp "\n"
+33    0029 20 EF            jr nz, get_char     ; next character if not newline
+34    002B              proc_cmd:               ; drop through here on newline
+35    002B 21 00 80         ld hl,BUFFER        ; point to start of buffer
+36    002E 7E               ld a,(hl)           ; load character from buffer
+37    002F FE 72            cp "r"              ; r = read
+38    0031 28 0B            jr z,rd_start
+39    0033 3E 3F            ld a, "?"           ; otherwise error
+40    0035 D3 01            out (SIO_DATA),a
+41    0037 3E 0A            ld a, "\n"
+42    0039 D3 01            out (SIO_DATA),a
+43    003B C3 13 00         jp new_prompt       ; loop back to the prompt
+44    003E              rd_start:
+45    003E 0E 10            ld c, 0x10          ; initialise byte counter - each row will have this many bytes
+46    0040              rd_start_ln:
+47    0040 7A               ld a,d              ; print DE content: the read address
+48    0041 CD 63 00         call prt_hex
+49    0044 7B               ld a,e
+50    0045 CD 63 00         call prt_hex
+51    0048 3E 3A            ld a,":"
+52    004A D3 01            out(SIO_DATA),a
+53    004C 3E 20            ld a," "
+54    004E D3 01            out(SIO_DATA),a
+55    0050              rd_ln_loop:
+56    0050 1A               ld a,(de)           ; get a byte
+57    0051 CD 63 00         call prt_hex        ; and print it
+58    0054 3E 20            ld a," "            ; add space between bytes
+59    0056 D3 01            out (SIO_DATA),a
+60    0058 13               inc de              ; next address
+61    0059 0D               dec c               ; reduce byte counter
+62    005A 20 F4            jr nz, rd_ln_loop   ; repeat if the counter is not 0
+63    005C 3E 0A            ld a, "\n"          ; otherwise, new line
+64    005E D3 01            out (SIO_DATA),a
+65    0060 C3 13 00         jp new_prompt       ; and back to prompt
+66    0063              prt_hex:
+67    0063 47               ld b,a              ; copy into B
+68    0064 CB 3F            srl a               ; shift A right x4 e.g. transform 10110010 to 00001011
+69    0066 CB 3F            srl a
+70    0068 CB 3F            srl a
+71    006A CB 3F            srl a
+72    006C CD 76 00         call prt_hex_dgt    ; most significant digit
+73    006F 78               ld a,b              ; get the original copy back
+74    0070 E6 0F            and %00001111       ; clears the top 4 bits
+75    0072 CD 76 00         call prt_hex_dgt    ; least significant digit
+76    0075 C9               ret
+77    0076              prt_hex_dgt:
+78    0076 FE 0A            cp 0x0a             ; is it an alpha or numeric?
+79    0078 38 05            jr c,prt_hex_n      ; numeric
+80    007A              prt_hex_a:              ; or drop through to alpha
+81    007A C6 57            add a,"W"           ; for alpha add the base ascii for 'a' but then sub 10 as hex 'a' is 10d => 'W'
+82    007C D3 01            out (SIO_DATA),a
+83    007E C9               ret
+84    007F              prt_hex_n:
+85    007F C6 30            add a,"0"           ; for numeric add the base ascii for '0'
+86    0081 D3 01            out (SIO_DATA),a
+87    0083 C9               ret
+88    0084              prt_str:                ; print a zero-terminated string, start pointed to by hl
+89    0084 7E               ld a,(hl)
+90    0085 FE 00            cp 0h
+91    0087 C8               ret z
+92    0088 D3 01            out(SIO_DATA),a
+93    008A 23               inc hl
+94    008B C3 84 00         jp prt_str
+95    008E 4D 41 52 56  start_msg   .db "MARVIN\n"
+95    0092 49 4E 0A
+96    0095 41 20 73 75              .db "A super simple monitor program for Z80 homebrew\n"
+96    0099 70 65 72 20
+96    009D 73 69 6D 70
+96    00A1 6C 65 20 6D
+96    00A5 6F 6E 69 74
+96    00A9 6F 72 20 70
+96    00AD 72 6F 67 72
+96    00B1 61 6D 20 66
+96    00B5 6F 72 20 5A
+96    00B9 38 30 20 68
+96    00BD 6F 6D 65 62
+96    00C1 72 65 77 0A
+97    00C5 28 63 29 20              .db "(c) Stephen Willcock 2024\n"
+97    00C9 53 74 65 70
+97    00CD 68 65 6E 20
+97    00D1 57 69 6C 6C
+97    00D5 63 6F 63 6B
+97    00D9 20 32 30 32
+97    00DD 34 0A
+98    00DF 68 74 74 70              .db "https://github.com/PainfulDiodes\n\n",0
+98    00E3 73 3A 2F 2F
+98    00E7 67 69 74 68
+98    00EB 75 62 2E 63
+98    00EF 6F 6D 2F 50
+98    00F3 61 69 6E 66
+98    00F7 75 6C 44 69
+98    00FB 6F 64 65 73
+98    00FF 0A 0A 00
+99    0102              end:
+# file closed: marvin.asm
