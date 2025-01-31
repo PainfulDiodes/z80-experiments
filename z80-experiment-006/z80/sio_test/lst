@@ -1,0 +1,116 @@
+# file opened: sio_test.asm
+  1   0000              ; **********************************************************************
+  2   0000              ; *  SIO Test
+  3   0000              ; **********************************************************************
+  4   0000
+  5   0000              BUFFER .equ 0x8000      ; start of RAM
+  6   0000              STACK .equ 0xffff       ; this should really be 0x0000 as the CPU will dec SP before PUSH
+  7   0000              UM345R_S .equ 0x00
+  8   0000              UM345R_D .equ 0x01
+  9   0000              SIO_A_D .equ 0x04
+ 10   0000              SIO_B_D .equ 0x05
+ 11   0000              SIO_A_C .equ 0x06
+ 12   0000              SIO_B_C .equ 0x07
+ 13   0000
+ 14   0000              start:
+ 15   0000 31 FF FF         ld sp, STACK
+ 16   0003 21 A1 00         ld hl,start_msg
+ 17   0006 CD 98 00         call(prt_str)
+ 18   0009              init:
+ 19   0009 3E 18            ld a,%00011000      ; channel reset
+ 20   000B D3 06            out (SIO_A_C),a
+ 21   000D D3 07            out (SIO_B_C),a
+ 22   000F 3E 04            ld a,4              ; pointer to WR4
+ 23   0011 D3 06            out (SIO_A_C),a
+ 24   0013 D3 07            out (SIO_B_C),a
+ 25   0015 3E C7            ld a,%11000111      ; clock rate (2), 0, 0, stop bits (2), parity type, parity
+ 26   0017 D3 06            out (SIO_A_C),a
+ 27   0019 D3 07            out (SIO_B_C),a
+ 28   001B 3E 01            ld a,1              ; pointer to WR1
+ 29   001D D3 06            out (SIO_A_C),a
+ 30   001F D3 07            out (SIO_B_C),a
+ 31   0021 3E 00            ld a,%00000000      ; interrupts etc
+ 32   0023 D3 06            out (SIO_A_C),a
+ 33   0025 D3 07            out (SIO_B_C),a
+ 34   0027 3E 03            ld a,3              ; pointer to WR3
+ 35   0029 D3 06            out (SIO_A_C),a
+ 36   002B D3 07            out (SIO_B_C),a
+ 37   002D 3E E1            ld a,%11100001      ; rx bits (2), auto enables, 0, 0, 0, 0, rx enable
+ 38   002F D3 06            out (SIO_A_C),a
+ 39   0031 D3 07            out (SIO_B_C),a
+ 40   0033 3E 05            ld a,5              ; pointer to WR5
+ 41   0035 D3 06            out (SIO_A_C),a
+ 42   0037 D3 07            out (SIO_B_C),a
+ 43   0039 3E E8            ld a,%11101000      ; DTR, tx bits (2), send break, tx enable, 0, RTS, 0
+ 44   003B D3 06            out (SIO_A_C),a
+ 45   003D D3 07            out (SIO_B_C),a
+ 46   003F              flush_B_input:
+ 47   003F 3E 00            ld a,0
+ 48   0041 D3 07            out (SIO_B_C),a     ; Pointer to RR0 for channel B
+ 49   0043 DB 07            in a,(SIO_B_C)      ; read status for channel B
+ 50   0045 CB 47            bit 0,a             ; check bit 0 - receive character available
+ 51   0047 28 04            jr z,input          ; continue if nothing to read
+ 52   0049 DB 05            in a,(SIO_B_D)      ; otherwise read data received
+ 53   004B 18 F2            jr flush_B_input    ; and repeat
+ 54   004D              input:
+ 55   004D DB 00            in a,(UM345R_S)     ; read the USB status
+ 56   004F CB 47            bit 0,a             ; check bit 0 - receive character available if zero
+ 57   0051 C2 60 00         jp nz,receive_data  ; jump ahead if nothing to read
+ 58   0054 DB 01            in a,(UM345R_D)     ; read a character
+ 59   0056              echo_input:
+ 60   0056 47               ld b,a
+ 61   0057 3E 7C            ld a,"|"
+ 62   0059 D3 01            out (UM345R_D),a
+ 63   005B 78               ld a,b
+ 64   005C D3 01            out (UM345R_D),a
+ 65   005E              send_data:
+ 66   005E D3 04            out (SIO_A_D),a     ; send data on channel A
+ 67   0060              receive_data:
+ 68   0060 3E 00            ld a,0
+ 69   0062 D3 07            out (SIO_B_C),a     ; Pointer to RR0 for channel B
+ 70   0064 DB 07            in a,(SIO_B_C)      ; read status for channel B
+ 71   0066 CB 47            bit 0,a             ; check bit 0 - receive character available
+ 72   0068 28 E3            jr z,input          ; loop back if nothing to read
+ 73   006A DB 05            in a,(SIO_B_D)      ; otherwise read data received
+ 74   006C              print_rec_data:
+ 75   006C 47               ld b,a
+ 76   006D 3E 2B            ld a,"+"
+ 77   006F D3 01            out (UM345R_D),a
+ 78   0071 78               ld a,b
+ 79   0072 D3 01            out (UM345R_D),a    ; print data USB
+ 80   0074 18 D7            jr input            ; and go back to start
+ 81   0076              end:
+ 82   0076 76               halt                ; never get here
+ 83   0077              prt_hex:                ; print contents of A as 2 digit hex to the port number in C
+ 84   0077 47               ld b,a              ; copy value into B
+ 85   0078 CB 3F            srl a               ; shift A right x4 e.g. transform 10110010 to 00001011
+ 86   007A CB 3F            srl a
+ 87   007C CB 3F            srl a
+ 88   007E CB 3F            srl a
+ 89   0080 CD 8A 00         call prt_hex_dgt    ; most significant digit
+ 90   0083 78               ld a,b              ; get the original copy back
+ 91   0084 E6 0F            and %00001111       ; clears the top 4 bits
+ 92   0086 CD 8A 00         call prt_hex_dgt    ; least significant digit
+ 93   0089 C9               ret
+ 94   008A              prt_hex_dgt:
+ 95   008A FE 0A            cp 0x0a             ; is it an alpha or numeric?
+ 96   008C 38 05            jr c,prt_hex_n      ; numeric
+ 97   008E              prt_hex_a:              ; or drop through to alpha
+ 98   008E C6 57            add a,"W"           ; for alpha add the base ascii for 'a' but then sub 10 as hex 'a' is 10d => 'W'
+ 99   0090 D3 01            out (UM345R_D),a
+100   0092 C9               ret
+101   0093              prt_hex_n:
+102   0093 C6 30            add a,"0"           ; for numeric add the base ascii for '0'
+103   0095 D3 01            out (UM345R_D),a
+104   0097 C9               ret
+105   0098              prt_str:                ; print a zero-terminated string, start pointed to by hl
+106   0098 7E               ld a,(hl)
+107   0099 FE 00            cp 0h
+108   009B C8               ret z
+109   009C D3 01            out(UM345R_D),a
+110   009E 23               inc hl
+111   009F 18 F7            jr prt_str
+112   00A1 73 69 6F 5F  start_msg   .db "sio_test11\n",0
+112   00A5 74 65 73 74
+112   00A9 31 31 0A 00
+# file closed: sio_test.asm
