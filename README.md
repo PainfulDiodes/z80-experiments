@@ -1,2 +1,2 @@
-# Z80 Experiments
-Code and schematics for the https://painfuldiodes.wordpress.com/ blog
+# Experiments
+Code, schematics and other files relating to PainfulDiodes experiment blog posts: https://painfuldiodes.wordpress.com/category/experiments/
